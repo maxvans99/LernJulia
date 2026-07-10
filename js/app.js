@@ -110,6 +110,19 @@
     return !!progress[courseId + "-" + lessonNumber];
   }
 
+  function exportProgressCode() {
+    const json = JSON.stringify(getProgress());
+    return btoa(unescape(encodeURIComponent(json)));
+  }
+
+  function importProgressCode(code) {
+    const json = decodeURIComponent(escape(atob(code.trim())));
+    const incoming = JSON.parse(json);
+    const current = getProgress();
+    const merged = Object.assign({}, current, incoming);
+    localStorage.setItem(PROGRESS_KEY, JSON.stringify(merged));
+  }
+
   // ---------- Login ----------
 
   loginForm.addEventListener("submit", async (e) => {
@@ -240,6 +253,48 @@
       grid.appendChild(card);
     });
     mainContent.appendChild(grid);
+
+    renderSyncBox();
+  }
+
+  function renderSyncBox() {
+    const box = el(
+      '<div class="card sync-box" style="margin-top:24px;">' +
+        "<h4>Fortschritt zwischen Geräten übertragen</h4>" +
+        '<p style="color:var(--text-muted);margin:8px 0 12px;">Auf diesem Gerät: Code erzeugen und auf dem anderen Gerät einfügen.</p>' +
+        '<button class="btn btn-secondary" id="sync-export-btn">Sync-Code anzeigen</button>' +
+        '<textarea id="sync-export-out" readonly style="display:none;margin-top:10px;width:100%;min-height:70px;" ></textarea>' +
+        '<div style="margin-top:16px;">' +
+          "<label>Code von anderem Gerät einfügen</label>" +
+          '<textarea id="sync-import-in" style="width:100%;min-height:70px;margin-top:6px;"></textarea>' +
+          '<button class="btn btn-primary" id="sync-import-btn" style="margin-top:10px;">Übernehmen</button>' +
+          '<p id="sync-import-msg" style="margin-top:8px;"></p>' +
+        "</div>" +
+      "</div>"
+    );
+    mainContent.appendChild(box);
+
+    box.querySelector("#sync-export-btn").addEventListener("click", () => {
+      const out = box.querySelector("#sync-export-out");
+      out.value = exportProgressCode();
+      out.style.display = "block";
+      out.focus();
+      out.select();
+    });
+
+    box.querySelector("#sync-import-btn").addEventListener("click", () => {
+      const input = box.querySelector("#sync-import-in");
+      const msg = box.querySelector("#sync-import-msg");
+      try {
+        importProgressCode(input.value);
+        msg.textContent = "Fortschritt übernommen!";
+        msg.style.color = "var(--accent)";
+        render();
+      } catch (e) {
+        msg.textContent = "Ungültiger Code.";
+        msg.style.color = "#c0392b";
+      }
+    });
   }
 
   function renderLessons(course) {
