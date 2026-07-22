@@ -389,18 +389,23 @@
         '<p style="color:var(--text-muted);margin:8px 0 16px;">Lässt sich die Zusammenfassung dieser Lektion vorlesen.</p>' +
         '<p id="podcast-status">Lädt…</p>' +
         '<audio id="podcast-audio" controls style="width:100%;display:none;"></audio>' +
+        '<a id="podcast-download" class="btn btn-secondary" style="display:none;margin-top:12px;" download>MP3 herunterladen</a>' +
       "</div>"
     );
     container.appendChild(card);
 
     const statusEl = card.querySelector("#podcast-status");
     const audioEl = card.querySelector("#podcast-audio");
+    const downloadEl = card.querySelector("#podcast-download");
 
     loadPodcastUrl(course.id, lesson.number)
       .then((url) => {
         audioEl.src = url;
         audioEl.style.display = "block";
         statusEl.style.display = "none";
+        downloadEl.href = url;
+        downloadEl.download = course.id + "-lektion-" + lesson.number + ".mp3";
+        downloadEl.style.display = "inline-block";
       })
       .catch(() => {
         statusEl.textContent = "Kein Podcast für diese Lektion verfügbar.";
