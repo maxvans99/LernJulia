@@ -62,18 +62,35 @@
     );
   }
 
-  async function decryptFile(encObj, password) {
+  async function decryptToBuffer(encObj, password) {
     const salt = b64ToBytes(encObj.salt);
     const iv = b64ToBytes(encObj.iv);
     const ciphertext = b64ToBytes(encObj.ciphertext);
     const key = await deriveKey(password, salt);
-    const plainBuf = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: iv },
-      key,
-      ciphertext
-    );
+    return crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, ciphertext);
+  }
+
+  async function decryptFile(encObj, password) {
+    const plainBuf = await decryptToBuffer(encObj, password);
     const text = new TextDecoder().decode(plainBuf);
     return JSON.parse(text);
+  }
+
+  const podcastUrlCache = {};
+
+  async function loadPodcastUrl(courseId, lessonNumber) {
+    const cacheKey = courseId + "-" + lessonNumber;
+    if (podcastUrlCache[cacheKey]) return podcastUrlCache[cacheKey];
+    const password = sessionStorage.getItem(SESSION_KEY);
+    const file = "data/podcasts/" + courseId + "-lektion-" + lessonNumber + ".enc.json";
+    const res = await fetch(file);
+    if (!res.ok) throw new Error("Podcast nicht gefunden: " + file);
+    const encObj = await res.json();
+    const buf = await decryptToBuffer(encObj, password);
+    const blob = new Blob([buf], { type: "audio/mpeg" });
+    const url = URL.createObjectURL(blob);
+    podcastUrlCache[cacheKey] = url;
+    return url;
   }
 
   async function loadCourses(password) {
@@ -336,6 +353,7 @@
     const tabs = el('<div class="tabs"></div>');
     const tabDefs = [
       { key: "summary", label: "Zusammenfassung" },
+      { key: "podcast", label: "🎧 Podcast" },
       { key: "quiz", label: "Quiz" },
       { key: "flashcards", label: "Karteikarten" },
       { key: "exercises", label: "Übungen" }
@@ -356,9 +374,37 @@
     mainContent.appendChild(container);
 
     if (state.tab === "summary") renderSummary(container, lesson);
+    else if (state.tab === "podcast") renderPodcast(container, course, lesson);
     else if (state.tab === "quiz") renderQuiz(container, course, lesson);
     else if (state.tab === "flashcards") renderFlashcards(container, lesson);
     else if (state.tab === "exercises") renderExercises(container, lesson);
+  }
+
+  // ---------- Podcast ----------
+
+  function renderPodcast(container, course, lesson) {
+    const card = el(
+      '<div class="card">' +
+        "<h4>🎧 Podcast: Lektion " + lesson.number + "</h4>" +
+        '<p style="color:var(--text-muted);margin:8px 0 16px;">Lässt sich die Zusammenfassung dieser Lektion vorlesen.</p>' +
+        '<p id="podcast-status">Lädt…</p>' +
+        '<audio id="podcast-audio" controls style="width:100%;display:none;"></audio>' +
+      "</div>"
+    );
+    container.appendChild(card);
+
+    const statusEl = card.querySelector("#podcast-status");
+    const audioEl = card.querySelector("#podcast-audio");
+
+    loadPodcastUrl(course.id, lesson.number)
+      .then((url) => {
+        audioEl.src = url;
+        audioEl.style.display = "block";
+        statusEl.style.display = "none";
+      })
+      .catch(() => {
+        statusEl.textContent = "Kein Podcast für diese Lektion verfügbar.";
+      });
   }
 
   function escapeHtml(str) {
